@@ -182,6 +182,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ################################################################################
+# Use WASM exceptions to prevent JS exceptions not being caught in async threads
+################################################################################
+option(Z3_USE_WASM_EXCEPTIONS 
+       "When compiling with Emscripten, use WASM exceptions" 
+       OFF
+      )
+
+################################################################################
 # Platform detection
 ################################################################################
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -197,9 +205,13 @@ elseif (EMSCRIPTEN)
     "-Os"
     "-s ALLOW_MEMORY_GROWTH=1"
     "-s ASSERTIONS=0"
-    "-s DISABLE_EXCEPTION_CATCHING=0"
     "-s ERROR_ON_UNDEFINED_SYMBOLS=1"
   )
+  if (NOT Z3_USE_WASM_EXCEPTIONS)
+    list(APPEND Z3_DEPENDENT_EXTRA_CXX_LINK_FLAGS
+         "-s DISABLE_EXCEPTION_CATCHING=0"
+    )
+  endif()
 endif()
 
 list(APPEND Z3_COMPONENT_EXTRA_INCLUDE_DIRS
