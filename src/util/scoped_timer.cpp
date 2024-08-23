@@ -49,6 +49,7 @@ static std::mutex workers;
 static atomic<unsigned> num_workers(0);
 
 static void thread_func(scoped_timer_state *s) {
+#ifndef SINGLE_THREAD
     workers.lock();
     while (true) {
         s->cv.wait(workers, [=]{ return s->work != IDLE; });
@@ -72,13 +73,14 @@ static void thread_func(scoped_timer_state *s) {
         s->work = IDLE;
         workers.lock();
     }
+#endif
 }
 
 
 scoped_timer::scoped_timer(unsigned ms, event_handler * eh) {
     if (ms == 0 || ms == UINT_MAX)
         return;
-
+#ifndef SINGLE_THREAD
     workers.lock();
     if (available_workers.empty()) {
         // start new thead
@@ -96,21 +98,24 @@ scoped_timer::scoped_timer(unsigned ms, event_handler * eh) {
         workers.unlock();
         s->cv.notify_one();
     }
+#endif
 }
     
 scoped_timer::~scoped_timer() {
     if (!s)
         return;
-
+#ifndef SINGLE_THREAD
     s->m_mutex.unlock();
     while (s->work == WORKING)
         std::this_thread::yield();
     workers.lock();
     available_workers.push_back(s);
     workers.unlock();
+#endif
 }
 
 void scoped_timer::initialize() {
+#ifndef SINGLE_THREAD
 #ifndef _WINDOWS
     static bool pthread_atfork_set = false;
     if (!pthread_atfork_set) {
@@ -118,9 +123,11 @@ void scoped_timer::initialize() {
         pthread_atfork_set = true;
     }
 #endif
+#endif
 }
 
 void scoped_timer::finalize() {
+#ifndef SINGLE_THREAD
     unsigned deleted = 0;
     while (deleted < num_workers) {
         workers.lock();
@@ -140,11 +147,14 @@ void scoped_timer::finalize() {
     }
     num_workers = 0;
     available_workers.clear();
+#endif
 }
 
 void scoped_timer::init_state(unsigned ms, event_handler * eh) {
+#ifndef SINGLE_THREAD
     s->ms = ms;
     s->eh = eh;
     s->m_mutex.lock();
     s->work = WORKING;
+#endif
 }
